@@ -1,0 +1,523 @@
+
+###### Code for checking dosage compensation in "biallelic" genes (Moreira de Mello, Scientific Reports 2017)> ########
+###### This code provides documentation of the analysis. It is by no means intended to be a convenient analysis tool. 
+##### INITIATION
+setwd("~/documents/Projects/Checking_DC_in_Mello2017_Biallelic_genes/")
+#loading rpkms, counts, and meta
+rpkm.ord <- readRDS(file="rpkm.genefilt_stratnostrat_ncells5_minrpkm10_nembryos2_samplefilt_ngenes_5000_spearcor_063.rds")
+tpm.ord <- readRDS(file="tpm.genefilt_stratnostrat_ncells5_minrpkm10_nembryos2_samplefilt_ngenes_5000_spearcor_063.rds")
+# rpkm.ord <- tpm.ord # for tpm plots, replaces rpkms with corresponding tpm values
+counts.ord <- readRDS(file="counts.genefilt_stratnostrat_ncells5_minrpkm10_nembryos2_samplefilt_ngenes_5000_spearcor_063.rds")
+meta.pass <- readRDS(file="meta.new.E3.E4.passed.2015.01.10.rds")
+annotation.raw     <- read.table(file="hg19refGene_eGFP.txt", header=FALSE, sep="\t", colClasses = "character")
+colnames(annotation.raw) <- c("a.number", "name", "chrom", "strand", "txStart", "txEnd", "cdsStart", "cdsEnd", "exonCount", "exonStarts", "exonEnds", "id", "name2", "cdsStartStat", "cdsEndStat", "exonFrames")
+annotation.matched <- match(rownames(rpkm.ord), annotation.raw$name2)
+annotation.gene    <-  annotation.raw[annotation.matched , ]
+rm(annotation.matched, annotation.raw) # cleanup
+# for TPMs: replace rpkm.ord with the corresponding TPM values:
+#tpm.ord <- readRDS()
+#rpkm.ord <- tpm.ord
+
+# index genes by chromosome location
+chrY.genes <- which(annotation.gene$chrom=="chrY")
+chrX.genes <- which(annotation.gene$chrom=="chrX")
+chr1.genes <- which(annotation.gene$chrom=="chr1")
+chr2.genes <- which(annotation.gene$chrom=="chr2")
+chr3.genes <- which(annotation.gene$chrom=="chr3")
+chr4.genes <- which(annotation.gene$chrom=="chr4")
+chr5.genes <- which(annotation.gene$chrom=="chr5")
+chr6.genes <- which(annotation.gene$chrom=="chr6")
+chr7.genes <- which(annotation.gene$chrom=="chr7")
+chr8.genes <- which(annotation.gene$chrom=="chr8")
+chr9.genes <- which(annotation.gene$chrom=="chr9")
+chr10.genes <- which(annotation.gene$chrom=="chr10")
+chr11.genes <- which(annotation.gene$chrom=="chr11")
+chr12.genes <- which(annotation.gene$chrom=="chr12")
+chr13.genes <- which(annotation.gene$chrom=="chr13")
+chr14.genes <- which(annotation.gene$chrom=="chr14")
+chr15.genes <- which(annotation.gene$chrom=="chr15")
+chr16.genes <- which(annotation.gene$chrom=="chr16")
+chr17.genes <- which(annotation.gene$chrom=="chr17")
+chr18.genes <- which(annotation.gene$chrom=="chr18")
+chr19.genes <- which(annotation.gene$chrom=="chr19")
+chr20.genes <- which(annotation.gene$chrom=="chr20")
+chr21.genes <- which(annotation.gene$chrom=="chr21")
+chr22.genes <- which(annotation.gene$chrom=="chr22")
+chrA.genes <- c(chr1.genes,chr2.genes,chr3.genes,chr4.genes,chr5.genes,chr6.genes,chr7.genes,chr8.genes,chr9.genes,chr10.genes,chr11.genes,chr12.genes,chr13.genes,chr14.genes,chr15.genes,chr16.genes,chr17.genes,chr18.genes,chr19.genes,chr20.genes,chr21.genes,chr22.genes)
+
+# confirming the chr position of genes on chrY and chrX in Stanford SOURCE and UCSC. 
+# removing the following wrongly annotated or pseudoautosomal genes from chrY: CD24
+chrY.remove <- which(rownames(rpkm.ord[chrY.genes, ])=="CD24")
+chrY.genes <- chrY.genes[-chrY.remove]      
+# checked for chrX (2018, April 1) - was OK
+rm(chrY.remove) #cleanup
+
+### indexing by sex and stage ###
+# removing cells with suspected F0 karyotype (E5.early.31)
+E5.early.31.cells <- which(meta.pass$stage.embryo=="E5.early.31")
+meta.pass$sex[E5.early.31.cells] <- "FX0"
+male.E3 <- which(meta.pass$sex=="M" & meta.pass$stage.days=="E3.freeze" )
+male.E4.freeze <- which(meta.pass$sex=="M" & meta.pass$stage.days=="E4.freeze" ) # E4.frozen, Figure S1 H-I
+male.E4 <- which(meta.pass$sex=="M" & meta.pass$stage.days=="E4" )
+male.E5 <- which(meta.pass$sex=="M" & meta.pass$stage.days=="E5" )
+male.E6 <- which(meta.pass$sex=="M" & meta.pass$stage.days=="E6" )
+male.E7 <- which(meta.pass$sex=="M" & meta.pass$stage.days=="E7" )
+female.E3 <- which(meta.pass$sex=="F" & meta.pass$stage.days=="E3.freeze" )
+female.E4.freeze <- which(meta.pass$sex=="F" & meta.pass$stage.days=="E4.freeze" ) # E4.frozen, Figure S1 H-I
+female.E4 <- which(meta.pass$sex=="F" & meta.pass$stage.days=="E4" )
+female.E5 <- which(meta.pass$sex=="F" & meta.pass$stage.days=="E5" )
+female.E6 <- which(meta.pass$sex=="F" & meta.pass$stage.days=="E6" )
+female.E7 <- which(meta.pass$sex=="F" & meta.pass$stage.days=="E7" )
+male.cells <- c(male.E3, male.E4, male.E5, male.E6, male.E7)
+female.cells <- c(female.E3, female.E4, female.E5, female.E6, female.E7)
+
+######### genes called "biallelic" by Moreira de Mello, Scientific Reports 2017 ("biallelic" lists obtained from Moreira de Mello)
+# gene sets from Joana
+E3_bial_gene_names <- read.table(file="E3-Females_chrX_BIAL_Genes.txt", header=FALSE)
+E4_bial_gene_names <- read.table(file="E4-Females_chrX_BIAL_Genes.txt", header=FALSE)
+E5_bial_gene_names <- read.table(file="E5-Females_chrX_BIAL_Genes.txt", header=FALSE)
+E6_bial_gene_names <- read.table(file="E6-Females_chrX_BIAL_Genes.txt", header=FALSE)
+E7_bial_gene_names <- read.table(file="E7-Females_chrX_BIAL_Genes.txt", header=FALSE)
+
+# indexing biallelic genes on chrX
+female.E3.chrX.genes <- which(rownames(rpkm.ord[chrX.genes, ]) %in% as.character(E3_bial_gene_names[, 2]) )
+female.E4.chrX.genes <- which(rownames(rpkm.ord[chrX.genes, ]) %in% as.character(E4_bial_gene_names[, 2]) )
+female.E5.chrX.genes <- which(rownames(rpkm.ord[chrX.genes, ]) %in% as.character(E5_bial_gene_names[, 2]) )
+female.E6.chrX.genes <- which(rownames(rpkm.ord[chrX.genes, ]) %in% as.character(E6_bial_gene_names[, 2]) )
+female.E7.chrX.genes <- which(rownames(rpkm.ord[chrX.genes, ]) %in% as.character(E7_bial_gene_names[, 2]) )
+
+##################### SPEARMAN CORRELATIONS (post ZGA, E4-E7, with embryonic day) in biallelic genes
+library(matrixStats) # for rowMedians() 
+## genes above 1 rpkm used for correlations, choose gene set. Other thresholds than 1 (such as for example 5) provided similar results 
+Exp.Threshold <- 1
+# chrX.genes.above.Exp.Threshold <- which(rowMeans(rpkm.ord[chrX.genes[female.E4.chrX.genes], c(female.E4, female.E5, female.E6, female.E7, male.E4, male.E5, male.E6, male.E7) ])>Exp.Threshold)
+# chrX.genes.above.Exp.Threshold <- which(rowMeans(rpkm.ord[chrX.genes[female.E5.chrX.genes], c(female.E4, female.E5, female.E6, female.E7, male.E4, male.E5, male.E6, male.E7) ])>Exp.Threshold)
+# chrX.genes.above.Exp.Threshold <- which(rowMeans(rpkm.ord[chrX.genes[female.E6.chrX.genes], c(female.E4, female.E5, female.E6, female.E7, male.E4, male.E5, male.E6, male.E7) ])>Exp.Threshold)
+ chrX.genes.above.Exp.Threshold <- which(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes], c(female.E4, female.E5, female.E6, female.E7, male.E4, male.E5, male.E6, male.E7) ])>Exp.Threshold)
+chrA.genes.above.Exp.Threshold <- which(rowMeans(rpkm.ord[chrA.genes, ])>Exp.Threshold)
+
+chrX.cor.female.biallelic.genes <- c()
+for(K in 1:length(chrX.genes[chrX.genes.above.Exp.Threshold]) ) {
+	chrX.cor.female.biallelic.genes[K] <- cor(c(
+		rpkm.ord[chrX.genes[chrX.genes.above.Exp.Threshold][K],  female.E4]
+		,rpkm.ord[chrX.genes[chrX.genes.above.Exp.Threshold][K], female.E5]
+		,rpkm.ord[chrX.genes[chrX.genes.above.Exp.Threshold][K], female.E6]
+		,rpkm.ord[chrX.genes[chrX.genes.above.Exp.Threshold][K], female.E7]
+	), c( rep(1, length(female.E4)),   
+		rep(2, length(female.E5)),
+		rep(3, length(female.E6)),
+		rep(4, length(female.E7))), method="spearman")
+}
+
+chrX.cor.male.biallelic.genes <- c()
+for(K in 1:length(chrX.genes[chrX.genes.above.Exp.Threshold]) ) {
+	chrX.cor.male.biallelic.genes[K] <- cor(c(
+		rpkm.ord[chrX.genes[chrX.genes.above.Exp.Threshold][K],  male.E4]
+		,rpkm.ord[chrX.genes[chrX.genes.above.Exp.Threshold][K], male.E5]
+		,rpkm.ord[chrX.genes[chrX.genes.above.Exp.Threshold][K], male.E6]
+		,rpkm.ord[chrX.genes[chrX.genes.above.Exp.Threshold][K], male.E7]
+	), c( rep(1, length(male.E4)),   
+		rep(2, length(male.E5)),
+		rep(3, length(male.E6)),
+		rep(4, length(male.E7))), method="spearman")
+}
+
+chrA.cor.female <- c()
+for(K in 1:length(chrA.genes[chrA.genes.above.Exp.Threshold]) ) {
+	chrA.cor.female[K] <- cor(c(
+		rpkm.ord[chrA.genes[chrA.genes.above.Exp.Threshold][K],  female.E4]
+		,rpkm.ord[chrA.genes[chrA.genes.above.Exp.Threshold][K], female.E5]
+		,rpkm.ord[chrA.genes[chrA.genes.above.Exp.Threshold][K], female.E6]
+		,rpkm.ord[chrA.genes[chrA.genes.above.Exp.Threshold][K], female.E7]
+	), c( rep(1, length(female.E4)),   
+		rep(2, length(female.E5)),
+		rep(3, length(female.E6)),
+		rep(4, length(female.E7))), method="spearman")
+}
+
+### Plotting Spearman distribution
+# par(mfrow=c(2,2), cex=0.7)
+bw.smooth <- 0.15
+spearman.title <- "Biallelic E7 genes" 
+plot(density(chrX.cor.female.biallelic.genes, bw=bw.smooth, na.rm=TRUE), ylim=c(0,2), xlim=c(-1,1), col="red", lty=1, main=spearman.title)
+lines(density(chrX.cor.male.biallelic.genes, bw=bw.smooth, na.rm=TRUE), ylim=c(0,2), xlim=c(-1,1), col="darkblue", lty=1)
+lines(density(chrA.cor.female, bw=bw.smooth, na.rm=TRUE), ylim=c(0,2), xlim=c(-1,1), col="darkgreen")
+text(0.5, c(2, 1.9, 1.8), c("chrX (F)", "chrX (M)", "chrA (F)"), pos=4, col=c("red", "darkblue", "darkgreen") )
+text(0, 1, wilcox.test(chrX.cor.female.biallelic.genes,  chrX.cor.male.biallelic.genes, alternative="less")$p.val, pos=1, col="blue" )
+text(0, 0.75, wilcox.test(chrX.cor.female.biallelic.genes,  chrA.cor.female, alternative="less")$p.val, pos=1, col="lightgreen" )
+
+########### MEAN FEMALE-TO-MALE EXPRESSION LEVELS, per stage; EACH BIALLELIC SET PER STAGE
+Threshold.FM <- 1 # Threshold for expressed genes included. Other thresholds (such as for example 5) provided similar results
+E3.above.FM <- which(rowMeans(rpkm.ord[chrX.genes[female.E3.chrX.genes], c(female.E3, male.E3)]) >Threshold.FM )
+E4.above.FM <- which(rowMeans(rpkm.ord[chrX.genes[female.E4.chrX.genes], c(female.E4, male.E4)]) >Threshold.FM )
+E5.above.FM <- which(rowMeans(rpkm.ord[chrX.genes[female.E5.chrX.genes], c(female.E5, male.E4)]) >Threshold.FM )
+E6.above.FM <- which(rowMeans(rpkm.ord[chrX.genes[female.E6.chrX.genes], c(female.E6, male.E5)]) >Threshold.FM )
+E7.above.FM <- which(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes], c(female.E7, male.E7)]) >Threshold.FM )
+
+E3.female.male.mean.fold.changes <- rowMeans(rpkm.ord[chrX.genes[female.E3.chrX.genes[E3.above.FM]], female.E3]) / rowMeans(rpkm.ord[chrX.genes[female.E3.chrX.genes[E3.above.FM]], male.E3])
+E4.female.male.mean.fold.changes <- rowMeans(rpkm.ord[chrX.genes[female.E4.chrX.genes[E4.above.FM]], female.E4]) / rowMeans(rpkm.ord[chrX.genes[female.E4.chrX.genes[E4.above.FM]], male.E4])
+E5.female.male.mean.fold.changes <- rowMeans(rpkm.ord[chrX.genes[female.E5.chrX.genes[E5.above.FM]], female.E5]) / rowMeans(rpkm.ord[chrX.genes[female.E5.chrX.genes[E5.above.FM]], male.E5])
+E6.female.male.mean.fold.changes <- rowMeans(rpkm.ord[chrX.genes[female.E6.chrX.genes[E6.above.FM]], female.E6]) / rowMeans(rpkm.ord[chrX.genes[female.E6.chrX.genes[E6.above.FM]], male.E6])
+E7.female.male.mean.fold.changes <- rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes[E7.above.FM]], female.E7]) / rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes[E7.above.FM]], male.E7])
+
+par(mfrow=c(2,2), cex=0.7)
+# boxplot, outlier range=1
+boxplot( 
+	E3.female.male.mean.fold.changes,
+	E4.female.male.mean.fold.changes,
+	E5.female.male.mean.fold.changes,
+	E6.female.male.mean.fold.changes,
+	E7.female.male.mean.fold.changes,
+	ylim=c(0,3), col=NA, na.rm=TRUE, border="black", names=c("E3", "E4", "E5", "E6", "E7"), ylab="Gene F/M mean", xlab="Stage", main="Biallelic genes per stage, All cells", notch=TRUE, outline=FALSE, range=1 )
+# add n female cells, n male cells, n genes 	
+text( c(1,2,3,4,5), c(0.5,0.5,0.5,0.5,0.5) , c(length(female.E3),length(female.E4),length(female.E5),length(female.E6),length(female.E7)  ), pos=2, col="red" ) 
+text( c(1,2,3,4,5), c(0.3,0.3,0.3,0.3,0.3) , c(length(male.E3),length(male.E4),length(male.E5),length(male.E6),length(male.E7)  ), pos=2, col="darkblue" ) 
+text( c(1,2,3,4,5), c(0.1,0.1,0.1,0.1,0.1) , c(
+	length(which(E3.female.male.mean.fold.changes != Inf )),
+	length(which(E4.female.male.mean.fold.changes != Inf )),
+	length(which(E5.female.male.mean.fold.changes != Inf )),
+	length(which(E6.female.male.mean.fold.changes != Inf )),
+	length(which(E7.female.male.mean.fold.changes != Inf )) ), pos=2 ) 
+# add rank P-value E4 vs E7, Wilcoxon
+text( 2, 3, wilcox.test(E4.female.male.mean.fold.changes, E7.female.male.mean.fold.changes, na.rm=TRUE)$p.val, pos=4 )
+# median line		
+lines(x=1:5, y=c(
+	median(E3.female.male.mean.fold.changes),
+	median(E4.female.male.mean.fold.changes),
+	median(E5.female.male.mean.fold.changes),
+	median(E6.female.male.mean.fold.changes),
+	median(E7.female.male.mean.fold.changes)) )
+
+########### MEAN FEMALE-TO-MALE EXPRESSION LEVELS, per stage; BIALLELIC E7 SET
+Threshold.FM.E7 <- 1 # Threshold for expressed genes included. Other thresholds (such as for example 5) provided similar results
+E7.above.FM.E7 <- which(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes], c(female.cells, male.cells)]) >Threshold.FM.E7 )
+
+E3.female.male.mean.fold.changes.E7 <- rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes[E7.above.FM.E7]], female.E3]) / rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes[E7.above.FM.E7]], male.E3])
+E4.female.male.mean.fold.changes.E7 <- rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes[E7.above.FM.E7]], female.E4]) / rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes[E7.above.FM.E7]], male.E4])
+E5.female.male.mean.fold.changes.E7 <- rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes[E7.above.FM.E7]], female.E5]) / rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes[E7.above.FM.E7]], male.E5])
+E6.female.male.mean.fold.changes.E7 <- rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes[E7.above.FM.E7]], female.E6]) / rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes[E7.above.FM.E7]], male.E6])
+E7.female.male.mean.fold.changes.E7 <- rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes[E7.above.FM.E7]], female.E7]) / rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes[E7.above.FM.E7]], male.E7])
+
+par(mfrow=c(2,2), cex=0.7)
+# boxplot, outlier range=1
+boxplot( 
+	E3.female.male.mean.fold.changes.E7,
+	E4.female.male.mean.fold.changes.E7,
+	E5.female.male.mean.fold.changes.E7,
+	E6.female.male.mean.fold.changes.E7,
+	E7.female.male.mean.fold.changes.E7,
+	ylim=c(0,3), col=NA, na.rm=TRUE, border="black", names=c("E3", "E4", "E5", "E6", "E7"), ylab="Gene F/M mean", xlab="Stage", main="Biallelic E7 genes, All cells", notch=TRUE, outline=FALSE, range=1 )
+# add n female cells, n male cells, n genes 	
+text( c(1,2,3,4,5), c(0.5,0.5,0.5,0.5,0.5) , c(length(female.E3),length(female.E4),length(female.E5),length(female.E6),length(female.E7)  ), pos=2, col="red" ) 
+text( c(1,2,3,4,5), c(0.3,0.3,0.3,0.3,0.3) , c(length(male.E3),length(male.E4),length(male.E5),length(male.E6),length(male.E7)  ), pos=2, col="darkblue" ) 
+text( c(1,2,3,4,5), c(0.1,0.1,0.1,0.1,0.1) , c(
+	length(which(E3.female.male.mean.fold.changes.E7 != Inf )),
+	length(which(E4.female.male.mean.fold.changes.E7 != Inf )),
+	length(which(E5.female.male.mean.fold.changes.E7 != Inf )),
+	length(which(E6.female.male.mean.fold.changes.E7 != Inf )),
+	length(which(E7.female.male.mean.fold.changes.E7 != Inf )) ), pos=2 ) 
+# add rank P-value E4 vs E7, Wilcoxon
+text( 2, 3, wilcox.test(E4.female.male.mean.fold.changes.E7, E7.female.male.mean.fold.changes.E7, na.rm=TRUE)$p.val, pos=4 )
+# median line		
+lines(x=1:5, y=c(
+	median(E3.female.male.mean.fold.changes.E7),
+	median(E4.female.male.mean.fold.changes.E7),
+	median(E5.female.male.mean.fold.changes.E7),
+	median(E6.female.male.mean.fold.changes.E7),
+	median(E7.female.male.mean.fold.changes.E7)) )
+
+################# TOTAL EXPRESSION (RPKM sums)
+color.vector <- c("#63ccd1",	"#e33a28",	"#66de4c",	"#592ec5",
+	"#aae045",	"#af43db",	"#e2e136",	"#685be2",
+	"#62a52f",	"#db43c6",	"#70e892",	"#4a248d",
+	"#d3e578",	"#546bd2",	"#e4b135",	"#a86fd9",
+	"#afab34",	"#8b3188",	"#4cb366",	"#d552a3",
+	"#62e2be",	"#dd3671",	"#35672a",	"#d691dc",
+	"#73822c",	"#474387",	"#dc822c",	"#6f90de",
+	"#cc5129",	"#5fabd5",	"#d54851",	"#afe0ae",
+	"#33194f",	"#dfd491",	"#2c2033",	"#daae61",
+	"#476696",	"#9a7729",	"#92669b",	"#96b46b",
+	"#6d254c",	"#b0d5da",	"#852c2d",	"#519477",
+	"#bd5578",	"#1c2e24",	"#df845f",	"#3a646c",
+	"#9a4f1e",	"#c7b9e4",	"#5f521e",	"#d38eac",
+	"#3a462a",	"#d0d1b4",	"#52271e",	"#dab4b4",
+	"#674b5f",	"#d7a884",	"#838ea7",	"#cf7c7a",
+	"#8f8a5e",	"#8d5f48",	"#858378")
+
+all.female.cells <- c(female.E3, female.E4, female.E5, female.E6, female.E7)
+all.male.cells <- c(male.E3, male.E4, male.E5, male.E6, male.E7)
+
+q90.E7.all <- quantile(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes], c(all.male.cells, all.female.cells) ]), p=0.9 )
+ninthy.percentile.genes <- which(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes], c(all.male.cells, all.female.cells) ])<=q90.E7.all)
+
+par(mfrow=c(2,2), cex=0.5)
+hist(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes], c(all.male.cells, all.female.cells)]), ylim=c(0,40), breaks=50, main="Expression levels E7 biallelic genes", xlab="Expression level (RPKM)", ylab="Number of genes", col="darkgreen", border=NA )
+text(x=0, y=38, length(ninthy.percentile.genes) )
+text(x=500, y=38, length(female.E7.chrX.genes)-length(ninthy.percentile.genes) )
+abline(v=q90.E7.all, col="red", lty=2)
+
+rowMeans.E7.all <- rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes], c(all.male.cells, all.female.cells) ] )
+barplot(rowMeans.E7.all[order(rowMeans.E7.all)], las=2, border=NA, ylim=c(0,1400), col=color.vector[order(rowMeans.E7.all)], main="Expression levels E7 biallelic genes",ylab="Expression level (RPKM)")
+
+
+barplot(c(
+	sum(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes][order(rowMeans.E7.all)], female.E3 ])[1:63]),
+	sum(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes][order(rowMeans.E7.all)], female.E4 ])[1:63]),
+	sum(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes][order(rowMeans.E7.all)], female.E5 ])[1:63]),
+	sum(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes][order(rowMeans.E7.all)], female.E6 ])[1:63]),
+	sum(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes][order(rowMeans.E7.all)], female.E7 ])[1:63])), 
+	names=c("E3", "E4", "E5", "E6", "E7"), ylab="Expression level (RPKM)", xlab="Stage", main="Total chrX expression, E7 biallelic genes",
+	las=2, ylim=c(0,8000), border=NA, col=color.vector[63], add=FALSE )
+
+for(W in length(female.E7.chrX.genes):1){
+	barplot(c(
+		sum(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes][order(rowMeans.E7.all)], female.E3 ])[1:W]),
+		sum(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes][order(rowMeans.E7.all)], female.E4 ])[1:W]),
+		sum(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes][order(rowMeans.E7.all)], female.E5 ])[1:W]),
+		sum(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes][order(rowMeans.E7.all)], female.E6 ])[1:W]),
+		sum(rowMeans(rpkm.ord[chrX.genes[female.E7.chrX.genes][order(rowMeans.E7.all)], female.E7 ])[1:W])), border=color.vector[order(rowMeans.E7.all)][W], xaxt="n", yaxt="n", col=color.vector[order(rowMeans.E7.all)][W], add=TRUE )
+}
+
+boxplot(
+	colSums(rpkm.ord[chrX.genes[female.E7.chrX.genes][ninthy.percentile.genes], female.E3]),
+	colSums(rpkm.ord[chrX.genes[female.E7.chrX.genes][ninthy.percentile.genes], female.E4]),
+	colSums(rpkm.ord[chrX.genes[female.E7.chrX.genes][ninthy.percentile.genes], female.E5]),
+	colSums(rpkm.ord[chrX.genes[female.E7.chrX.genes][ninthy.percentile.genes], female.E6]),
+	colSums(rpkm.ord[chrX.genes[female.E7.chrX.genes][ninthy.percentile.genes], female.E7]),
+	col=NA, ylim=c(0,5000), na.rm=TRUE, border="black", names=c("E3", "E4", "E5", "E6", "E7"), ylab="Total expression in female cells (RPKM sum)", xlab="Stage", main="Total chrX expression, E7 biallelic genes", notch=TRUE, outline=FALSE, range=1 )
+lines(c(
+	median(colSums(rpkm.ord[chrX.genes[female.E7.chrX.genes][ninthy.percentile.genes], female.E3])),
+	median(colSums(rpkm.ord[chrX.genes[female.E7.chrX.genes][ninthy.percentile.genes], female.E4])),
+	median(colSums(rpkm.ord[chrX.genes[female.E7.chrX.genes][ninthy.percentile.genes], female.E5])),
+	median(colSums(rpkm.ord[chrX.genes[female.E7.chrX.genes][ninthy.percentile.genes], female.E6])),
+	median(colSums(rpkm.ord[chrX.genes[female.E7.chrX.genes][ninthy.percentile.genes], female.E7])) )	)
+text(x=2, y=5000,	
+	wilcox.test(colSums(rpkm.ord[chrX.genes[female.E7.chrX.genes][ninthy.percentile.genes], female.E4]), colSums(rpkm.ord[chrX.genes[female.E7.chrX.genes][ninthy.percentile.genes], female.E7]))$p.val
+	, pos=4)
+text(x=5, y=0, length(ninthy.percentile.genes) )
+
+#######################################################################################################################
+###################### CHECKING DOSAGE COMPENSATION IN BIALLELIC GENES IN THE MELLO DATA ##############################
+######## reading data from obtained from Moreira de Mello
+setwd("~/documents/Projects/Checking_DC_in_Mello2017_Biallelic_genes/")
+mello.samples <- read.table(file="Sample_info.csv", sep="\t", header=TRUE) # sample info obtained from Moreira de Mello
+mello.tpm <- read.table(file="E-MTAB-3929_TPM_Matrix.txt", sep="\t", header=TRUE) # TPMs obtained from Moreira de Mello
+tpm <- mello.tpm[, -c(1,2)] # row 1:2 is gene annotation
+tpm.annot <- mello.tpm[, c(1,2)] # row 1:2 is gene annotation 
+tpm <- data.matrix(tpm)
+rm(mello.tpm) # clean
+
+chrX.genes.in.tpm <- match(annotation.gene$name[chrX.genes], tpm.annot[, 2] )
+chrA.genes.in.tpm <- match(annotation.gene$name[chrA.genes], tpm.annot[, 2] )
+
+### indexing by sex and stage ###
+male.E3.mello <- which(mello.samples$Sex=="male" & grepl("E3", mello.samples$Embryo) )
+male.E4.mello <- which(mello.samples$Sex=="male" & grepl("E4", mello.samples$Embryo) )
+male.E5.mello <- which(mello.samples$Sex=="male" & grepl("E5", mello.samples$Embryo) )
+male.E6.mello <- which(mello.samples$Sex=="male" & grepl("E6", mello.samples$Embryo) )
+male.E7.mello <- which(mello.samples$Sex=="male" & grepl("E7", mello.samples$Embryo) )
+female.E3.mello <- which(mello.samples$Sex=="female" & grepl("E3", mello.samples$Embryo) )
+female.E4.mello <- which(mello.samples$Sex=="female" & grepl("E4", mello.samples$Embryo) )
+female.E5.mello <- which(mello.samples$Sex=="female" & grepl("E5", mello.samples$Embryo) )
+female.E6.mello <- which(mello.samples$Sex=="female" & grepl("E6", mello.samples$Embryo) )
+female.E7.mello <- which(mello.samples$Sex=="female" & grepl("E7", mello.samples$Embryo) )
+male.cells.mello <- c(male.E3.mello, male.E4.mello, male.E5.mello, male.E6.mello, male.E7.mello)
+female.cells.mello <- c(female.E3.mello, female.E4.mello, female.E5.mello, female.E6.mello, female.E7.mello)
+
+# indexing biallelic genes on chrX
+chrX.E3.gene.mello <- match(annotation.gene$name[chrX.genes[female.E3.chrX.genes]], as.character(tpm.annot[, 2]) )
+chrX.E4.gene.mello <- match(annotation.gene$name[chrX.genes[female.E4.chrX.genes]], as.character(tpm.annot[, 2]) )
+chrX.E5.gene.mello <- match(annotation.gene$name[chrX.genes[female.E5.chrX.genes]], as.character(tpm.annot[, 2]) )
+chrX.E6.gene.mello <- match(annotation.gene$name[chrX.genes[female.E6.chrX.genes]], as.character(tpm.annot[, 2]) )
+chrX.E7.gene.mello <- match(annotation.gene$name[chrX.genes[female.E7.chrX.genes]], as.character(tpm.annot[, 2]) )
+
+########### MEAN FEMALE-TO-MALE EXPRESSION LEVELS, per stage; EACH BIALLELIC SET PER STAGE
+mello.Threshold.FM <- 1 # Threshold for expressed genes included. Other thresholds (such as for example 5) provided similar results
+mello.E3.above.FM <- which(rowMeans(tpm[chrX.E3.gene.mello, c(female.cells.mello, male.cells.mello)]) >mello.Threshold.FM )
+mello.E4.above.FM <- which(rowMeans(tpm[chrX.E4.gene.mello, c(female.cells.mello, male.cells.mello)]) >mello.Threshold.FM )
+mello.E5.above.FM <- which(rowMeans(tpm[chrX.E5.gene.mello, c(female.cells.mello, male.cells.mello)]) >mello.Threshold.FM )
+mello.E6.above.FM <- which(rowMeans(tpm[chrX.E6.gene.mello, c(female.cells.mello, male.cells.mello)]) >mello.Threshold.FM )
+mello.E7.above.FM <- which(rowMeans(tpm[chrX.E7.gene.mello, c(female.cells.mello, male.cells.mello)]) >mello.Threshold.FM )
+
+mello.tpm.E3.female.male.mean.fold.changes <- rowMeans(tpm[chrX.E3.gene.mello[mello.E3.above.FM],  female.E3.mello] ) / rowMeans(tpm[chrX.E3.gene.mello[mello.E3.above.FM],  male.E3.mello] )
+mello.tpm.E4.female.male.mean.fold.changes <- rowMeans(tpm[chrX.E4.gene.mello[mello.E4.above.FM],  female.E4.mello] ) / rowMeans(tpm[chrX.E4.gene.mello[mello.E4.above.FM],  male.E4.mello] )
+mello.tpm.E5.female.male.mean.fold.changes <- rowMeans(tpm[chrX.E5.gene.mello[mello.E5.above.FM],  female.E5.mello] ) / rowMeans(tpm[chrX.E5.gene.mello[mello.E5.above.FM],  male.E5.mello] )
+mello.tpm.E6.female.male.mean.fold.changes <- rowMeans(tpm[chrX.E6.gene.mello[mello.E6.above.FM],  female.E6.mello] ) / rowMeans(tpm[chrX.E6.gene.mello[mello.E6.above.FM],  male.E6.mello] )
+mello.tpm.E7.female.male.mean.fold.changes <- rowMeans(tpm[chrX.E7.gene.mello[mello.E7.above.FM],  female.E7.mello] ) / rowMeans(tpm[chrX.E7.gene.mello[mello.E7.above.FM],  male.E7.mello] )
+
+par(mfrow=c(2,2), cex=0.7)
+# boxplot, outlier range=1
+boxplot( 
+	mello.tpm.E3.female.male.mean.fold.changes,
+	mello.tpm.E4.female.male.mean.fold.changes,
+	mello.tpm.E5.female.male.mean.fold.changes,
+	mello.tpm.E6.female.male.mean.fold.changes,
+	mello.tpm.E7.female.male.mean.fold.changes,
+	ylim=c(0,5), col=NA, na.rm=TRUE, border="black", names=c("E3", "E4", "E5", "E6", "E7"), ylab="Gene F/M mean", xlab="Stage", main="Biallelic genes per stage, All cells", notch=FALSE, outline=FALSE, range=1 )
+# add n female cells, n male cells, n genes 	
+text( c(1,2,3,4,5), c(0.5,0.5,0.5,0.5,0.5) , c(length(female.E3),length(female.E4),length(female.E5),length(female.E6),length(female.E7)  ), pos=2, col="red" ) 
+text( c(1,2,3,4,5), c(0.3,0.3,0.3,0.3,0.3) , c(length(male.E3),length(male.E4),length(male.E5),length(male.E6),length(male.E7)  ), pos=2, col="darkblue" ) 
+text( c(1,2,3,4,5), c(0.1,0.1,0.1,0.1,0.1) , c(
+	length(which(mello.tpm.E3.female.male.mean.fold.changes != Inf )),
+	length(which(mello.tpm.E4.female.male.mean.fold.changes != Inf )),
+	length(which(mello.tpm.E5.female.male.mean.fold.changes != Inf )),
+	length(which(mello.tpm.E6.female.male.mean.fold.changes != Inf )),
+	length(which(mello.tpm.E7.female.male.mean.fold.changes != Inf )) ), pos=2 ) 
+# add rank P-value E4 vs E7, Wilcoxon
+text( 2, 3, wilcox.test(mello.tpm.E4.female.male.mean.fold.changes, mello.tpm.E7.female.male.mean.fold.changes, na.rm=TRUE)$p.val, pos=4 )
+# median line		
+lines(x=1:5, y=c(
+	median(mello.tpm.E3.female.male.mean.fold.changes),
+	median(mello.tpm.E4.female.male.mean.fold.changes),
+	median(mello.tpm.E5.female.male.mean.fold.changes),
+	median(mello.tpm.E6.female.male.mean.fold.changes),
+	median(mello.tpm.E7.female.male.mean.fold.changes)) )
+
+########### MEAN FEMALE-TO-MALE EXPRESSION LEVELS, per stage; BIALLELIC E7 SET
+mello.Threshold.FM.E7 <- 1 # Threshold for expressed genes included. Other thresholds (such as for example 5) provided similar results
+mello.E7.above.FM.E7 <- which(rowMeans(tpm[chrX.E7.gene.mello, c(female.E7.mello, male.E7.mello)]) >mello.Threshold.FM.E7 )
+
+mello.tpm.E3.female.male.mean.fold.changes.E7 <- rowMeans(tpm[chrX.E7.gene.mello[mello.E7.above.FM.E7],  female.E3.mello] ) / rowMeans(tpm[chrX.E7.gene.mello[mello.E7.above.FM.E7],  male.E3.mello] )
+mello.tpm.E4.female.male.mean.fold.changes.E7 <- rowMeans(tpm[chrX.E7.gene.mello[mello.E7.above.FM.E7],  female.E4.mello] ) / rowMeans(tpm[chrX.E7.gene.mello[mello.E7.above.FM.E7],  male.E4.mello] )
+mello.tpm.E5.female.male.mean.fold.changes.E7 <- rowMeans(tpm[chrX.E7.gene.mello[mello.E7.above.FM.E7],  female.E5.mello] ) / rowMeans(tpm[chrX.E7.gene.mello[mello.E7.above.FM.E7],  male.E5.mello] )
+mello.tpm.E6.female.male.mean.fold.changes.E7 <- rowMeans(tpm[chrX.E7.gene.mello[mello.E7.above.FM.E7],  female.E6.mello] ) / rowMeans(tpm[chrX.E7.gene.mello[mello.E7.above.FM.E7],  male.E6.mello] )
+mello.tpm.E7.female.male.mean.fold.changes.E7 <- rowMeans(tpm[chrX.E7.gene.mello[mello.E7.above.FM.E7],  female.E7.mello] ) / rowMeans(tpm[chrX.E7.gene.mello[mello.E7.above.FM.E7],  male.E7.mello] )
+
+par(mfrow=c(2,2), cex=0.7)
+# boxplot, outlier range=1
+boxplot( 
+	mello.tpm.E3.female.male.mean.fold.changes.E7,
+	mello.tpm.E4.female.male.mean.fold.changes.E7,
+	mello.tpm.E5.female.male.mean.fold.changes.E7,
+	mello.tpm.E6.female.male.mean.fold.changes.E7,
+	mello.tpm.E7.female.male.mean.fold.changes.E7,
+	ylim=c(0,5), col=NA, na.rm=TRUE, border="black", names=c("E3", "E4", "E5", "E6", "E7"), ylab="Gene F/M mean", xlab="Stage", main="Biallelic E7 genes, All cells", notch=FALSE, outline=FALSE, range=1 )
+# add n female cells, n male cells, n genes 	
+text( c(1,2,3,4,5), c(0.5,0.5,0.5,0.5,0.5) , c(length(female.E3.mello),length(female.E4.mello),length(female.E5.mello),length(female.E6.mello),length(female.E7.mello)  ), pos=2, col="red" ) 
+text( c(1,2,3,4,5), c(0.3,0.3,0.3,0.3,0.3) , c(length(male.E3.mello),length(male.E4.mello),length(male.E5.mello),length(male.E6.mello),length(male.E7.mello)  ), pos=2, col="darkblue" ) 
+text( c(1,2,3,4,5), c(0.1,0.1,0.1,0.1,0.1) , c(
+	length(which(mello.tpm.E3.female.male.mean.fold.changes.E7 != Inf )),
+	length(which(mello.tpm.E4.female.male.mean.fold.changes.E7 != Inf )),
+	length(which(mello.tpm.E5.female.male.mean.fold.changes.E7 != Inf )),
+	length(which(mello.tpm.E6.female.male.mean.fold.changes.E7 != Inf )),
+	length(which(mello.tpm.E7.female.male.mean.fold.changes.E7 != Inf )) ), pos=2 ) 
+# add rank P-value E4 vs E7, Wilcoxon
+text( 2, 3, wilcox.test(mello.tpm.E4.female.male.mean.fold.changes.E7, mello.tpm.E7.female.male.mean.fold.changes.E7, na.rm=TRUE)$p.val, pos=4 )
+# median line		
+lines(x=1:5, y=c(
+	median(mello.tpm.E3.female.male.mean.fold.changes.E7, na.rm=TRUE),
+	median(mello.tpm.E4.female.male.mean.fold.changes.E7, na.rm=TRUE),
+	median(mello.tpm.E5.female.male.mean.fold.changes.E7, na.rm=TRUE),
+	median(mello.tpm.E6.female.male.mean.fold.changes.E7, na.rm=TRUE),
+	median(mello.tpm.E7.female.male.mean.fold.changes.E7, na.rm=TRUE)) )
+
+######################### SPEARMAN CORRELATIONS (post ZGA, E4-E7, with embryonic day) in biallelic genes
+## genes above 1 rpkm used for correlations, choose gene set. Other thresholds than 1 (such as for example 5) provided similar results 
+Exp.Threshold.mello <- 1
+femaleE4toE7.cells.mello <- c(female.E4.mello, female.E5.mello, female.E6.mello, female.E7.mello, male.E4.mello, male.E5.mello, male.E6.mello, male.E7.mello)
+chrX.genes.above.Exp.Threshold.mello <- which(rowMeans(tpm[chrX.E7.gene.mello, femaleE4toE7.cells.mello]) >Exp.Threshold.mello)
+chrA.genes.above.Exp.Threshold.mello <- which(rowMedians(tpm[chrA.genes.in.tpm, ])>Exp.Threshold.mello)
+
+chrX.cor.female.biallelic.genes.mello <- c()
+for(K in 1:length(chrX.genes.in.tpm[chrX.genes.above.Exp.Threshold.mello]) ) {
+	chrX.cor.female.biallelic.genes.mello[K] <- cor(c(
+		tpm[chrX.genes.in.tpm[chrX.genes.above.Exp.Threshold.mello][K],  female.E4.mello]
+		,tpm[chrX.genes.in.tpm[chrX.genes.above.Exp.Threshold.mello][K], female.E5.mello]
+		,tpm[chrX.genes.in.tpm[chrX.genes.above.Exp.Threshold.mello][K], female.E6.mello]
+		,tpm[chrX.genes.in.tpm[chrX.genes.above.Exp.Threshold.mello][K], female.E7.mello]
+	), c( rep(1, length(female.E4.mello)),   
+		rep(2, length(female.E5.mello)),
+		rep(3, length(female.E6.mello)),
+		rep(4, length(female.E7.mello))), method="spearman")
+}
+
+chrX.cor.male.biallelic.genes.mello <- c()
+for(K in 1:length(chrX.genes.in.tpm[chrX.genes.above.Exp.Threshold.mello]) ) {
+	chrX.cor.male.biallelic.genes.mello[K] <- cor(c(
+		tpm[chrX.genes.in.tpm[chrX.genes.above.Exp.Threshold.mello][K],  male.E4.mello]
+		,tpm[chrX.genes.in.tpm[chrX.genes.above.Exp.Threshold.mello][K], male.E5.mello]
+		,tpm[chrX.genes.in.tpm[chrX.genes.above.Exp.Threshold.mello][K], male.E6.mello]
+		,tpm[chrX.genes.in.tpm[chrX.genes.above.Exp.Threshold.mello][K], male.E7.mello]
+	), c( rep(1, length(male.E4.mello)),   
+		rep(2, length(male.E5.mello)),
+		rep(3, length(male.E6.mello)),
+		rep(4, length(male.E7.mello))), method="spearman")
+}
+
+chrA.cor.female.mello <- c()
+for(K in 1:length(chrA.genes.in.tpm[chrA.genes.above.Exp.Threshold.mello]) ) {
+	chrA.cor.female.mello[K] <- cor(c(
+		tpm[chrA.genes.in.tpm[chrA.genes.above.Exp.Threshold.mello][K],  female.E4.mello]
+		,tpm[chrA.genes.in.tpm[chrA.genes.above.Exp.Threshold.mello][K], female.E5.mello]
+		,tpm[chrA.genes.in.tpm[chrA.genes.above.Exp.Threshold.mello][K], female.E6.mello]
+		,tpm[chrA.genes.in.tpm[chrA.genes.above.Exp.Threshold.mello][K], female.E7.mello]
+	), c( rep(1, length(female.E4.mello)),   
+		rep(2, length(female.E5.mello)),
+		rep(3, length(female.E6.mello)),
+		rep(4, length(female.E7.mello))), method="spearman")
+}
+
+### Plotting Spearman distribution
+par(mfrow=c(2,2), cex=0.7)
+bw.smooth <- 0.15
+spearman.title <- "Biallelic E7 genes" 
+plot(density(chrX.cor.female.biallelic.genes.mello, bw=bw.smooth, na.rm=TRUE), ylim=c(0,2), xlim=c(-1,1), col="red", lty=1, main=spearman.title)
+lines(density(chrX.cor.male.biallelic.genes.mello, bw=bw.smooth, na.rm=TRUE), ylim=c(0,2), xlim=c(-1,1), col="darkblue", lty=1)
+lines(density(chrA.cor.female.mello, bw=bw.smooth, na.rm=TRUE), ylim=c(0,2), xlim=c(-1,1), col="darkgreen")
+text(0.5, c(2, 1.9, 1.8), c("chrX (F)", "chrX (M)", "chrA (F)"), pos=4, col=c("red", "darkblue", "darkgreen") )
+text(0, c(1), wilcox.test(chrX.cor.female.biallelic.genes.mello,  chrX.cor.male.biallelic.genes.mello, alternative="less")$p.val, pos=1, col="blue" )
+text(0, c(0.75), wilcox.test(chrX.cor.female.biallelic.genes.mello,  chrA.cor.female.mello, alternative="less")$p.val, pos=1, col="lightgreen" )
+
+################# TOTAL EXPRESSION (RPKM sums)
+	
+	q90.E7.mello <- quantile(rowMeans(tpm[chrX.E7.gene.mello, c(male.cells.mello, female.cells.mello) ]), p=0.9 )
+	ninthy.percentile.genes.mello <- which(rowMeans(tpm[chrX.E7.gene.mello, c(male.cells.mello, female.cells.mello) ])<=q90.E7.mello)
+	
+	par(mfrow=c(2,2), cex=0.5)
+	hist(rowMeans(tpm[chrX.E7.gene.mello, c(male.cells.mello, female.cells.mello)]), ylim=c(0,50), breaks=50, main="Expression levels E7 biallelic genes", xlab="Expression level (RPKM)", ylab="Number of genes", col="darkgreen", border=NA )
+	text(x=0, y=50, length(ninthy.percentile.genes.mello) )
+	text(x=500, y=50, length(chrX.E7.gene.mello)-length(ninthy.percentile.genes.mello) )
+	abline(v=q90.E7.mello, col="red", lty=2)
+	
+	rowMeans.E7.all.mello <- rowMeans(tpm[chrX.E7.gene.mello, c(male.cells.mello, female.cells.mello) ] )
+	barplot(rowMeans.E7.all.mello[order(rowMeans.E7.all.mello)], names=annotation.gene$name2[chrX.genes[female.E7.chrX.genes[order(rowMeans.E7.all.mello)]]] ,  las=2, border=NA, ylim=c(0,8000), col=color.vector[order(rowMeans.E7.all.mello)], main="Expression levels E7 biallelic genes", ylab="Expression level (RPKM)")
+	
+
+	
+	barplot(c(
+		sum(rowMeans(tpm[chrX.E7.gene.mello[order(rowMeans.E7.all.mello)], female.E3.mello ])[1:63]),
+		sum(rowMeans(tpm[chrX.E7.gene.mello[order(rowMeans.E7.all.mello)], female.E4.mello ])[1:63]),
+		sum(rowMeans(tpm[chrX.E7.gene.mello[order(rowMeans.E7.all.mello)], female.E5.mello ])[1:63]),
+		sum(rowMeans(tpm[chrX.E7.gene.mello[order(rowMeans.E7.all.mello)], female.E6.mello ])[1:63]),
+		sum(rowMeans(tpm[chrX.E7.gene.mello[order(rowMeans.E7.all.mello)], female.E7.mello ])[1:63])), 
+		names=c("E3", "E4", "E5", "E6", "E7"), ylab="Expression level (RPKM)", xlab="Stage", main="Total chrX expression, E7 biallelic genes",
+		las=2, ylim=c(0,40000), border=NA, col=color.vector[63], add=FALSE )
+	
+	for(W in length(chrX.E7.gene.mello):1){
+		barplot(c(
+			sum(rowMeans(tpm[chrX.E7.gene.mello[order(rowMeans.E7.all.mello)], female.E3.mello ])[1:W]),
+			sum(rowMeans(tpm[chrX.E7.gene.mello[order(rowMeans.E7.all.mello)], female.E4.mello ])[1:W]),
+			sum(rowMeans(tpm[chrX.E7.gene.mello[order(rowMeans.E7.all.mello)], female.E5.mello ])[1:W]),
+			sum(rowMeans(tpm[chrX.E7.gene.mello[order(rowMeans.E7.all.mello)], female.E6.mello ])[1:W]),
+			sum(rowMeans(tpm[chrX.E7.gene.mello[order(rowMeans.E7.all.mello)], female.E7.mello ])[1:W])), border=NA, xaxt="n", yaxt="n", col=color.vector[order(rowMeans.E7.all.mello)][W], add=TRUE )
+	}
+	
+	boxplot(
+		colSums(tpm[chrX.E7.gene.mello[ninthy.percentile.genes.mello], female.E3.mello]),
+		colSums(tpm[chrX.E7.gene.mello[ninthy.percentile.genes.mello], female.E4.mello]),
+		colSums(tpm[chrX.E7.gene.mello[ninthy.percentile.genes.mello], female.E5.mello]),
+		colSums(tpm[chrX.E7.gene.mello[ninthy.percentile.genes.mello], female.E6.mello]),
+		colSums(tpm[chrX.E7.gene.mello[ninthy.percentile.genes.mello], female.E7.mello]),
+		col=NA, ylim=c(0,7000), na.rm=TRUE, border="black", names=c("E3", "E4", "E5", "E6", "E7"), ylab="Total expression in female cells (RPKM sum)", xlab="Stage", main="Total chrX expression, E7 biallelic genes", notch=FALSE, outline=FALSE, range=1 )
+	lines(c(		median(colSums(tpm[chrX.E7.gene.mello[ninthy.percentile.genes.mello], female.E3.mello])),
+		median(colSums(tpm[chrX.E7.gene.mello[ninthy.percentile.genes.mello], female.E4.mello])),
+	median(colSums(tpm[chrX.E7.gene.mello[ninthy.percentile.genes.mello], female.E5.mello])),
+median(colSums(tpm[chrX.E7.gene.mello[ninthy.percentile.genes.mello], female.E6.mello])),
+median(colSums(tpm[chrX.E7.gene.mello[ninthy.percentile.genes.mello], female.E7.mello])) )	)
+text(x=2, y=6000,	
+	wilcox.test(colSums(tpm[chrX.E7.gene.mello[ninthy.percentile.genes.mello], female.E4.mello]), colSums(tpm[chrX.E7.gene.mello[ninthy.percentile.genes.mello], female.E7.mello]))$p.val
+	, pos=4)
+text(x=5, y=0, length(ninthy.percentile.genes) )
+
+###################### END OF SCRIPT ##############################
+
